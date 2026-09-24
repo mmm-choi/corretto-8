@@ -47,7 +47,9 @@ class MetaZonesParseHandler extends AbstractLDMLHandler<String> {
     private static final Date DATE_MAX = new Date(Long.MAX_VALUE);
     private static final Date NOW = new Date();
 
-    private String tzid, metazone;
+    private String tzid, metazone, dstOffset;
+    private String fallbackMetazone, fallbackDstOffset;
+    private Date fallbackTo = DATE_MIN;
 
     MetaZonesParseHandler() {
     }
@@ -75,16 +77,16 @@ class MetaZonesParseHandler extends AbstractLDMLHandler<String> {
             // uses the time of the JDK build to determine metazones.
             Date from = parseMzTime(attributes.getValue("from"), DATE_MIN);
             Date to = parseMzTime(attributes.getValue("to"), DATE_MAX);
+            String mzone = attributes.getValue("mzone");
+            String explicitDstOffset = attributes.getValue("dstOffset");
 
-            if (from.before(NOW) && to.after(NOW)) {
-                metazone = attributes.getValue("mzone");
-
-                // Explicit metazone DST offsets. Only the "dst" offset is needed,
-                // as "std" is used by default when it doesn't match.
-                String dstOffset = attributes.getValue("dstOffset");
-                if (dstOffset != null) {
-                    CLDRConverter.explicitDstOffsets.put(tzid, dstOffset);
-                }
+            if (!from.after(NOW) && to.after(NOW)) {
+                metazone = mzone;
+                dstOffset = explicitDstOffset;
+            } else if (!to.after(NOW) && to.after(fallbackTo)) {
+                fallbackMetazone = mzone;
+                fallbackDstOffset = explicitDstOffset;
+                fallbackTo = to;
             }
 
             pushIgnoredContainer(qName);
@@ -107,15 +109,28 @@ class MetaZonesParseHandler extends AbstractLDMLHandler<String> {
         assert qName.equals(currentContainer.getqName()) : "current=" + currentContainer.getqName() + ", param=" + qName;
         switch (qName) {
         case "timezone":
+            if (metazone == null) {
+                metazone = fallbackMetazone;
+                dstOffset = fallbackDstOffset;
+            }
             if (tzid == null) {
                 throw new InternalError();
             } else if (metazone == null) {
                 CLDRConverter.info("No metazone defined for %s%n", tzid);
             } else {
                 put(tzid, metazone);
+                // Only the "dst" offset is needed, as "std" is used by
+                // default when it doesn't match.
+                if (dstOffset != null) {
+                    CLDRConverter.explicitDstOffsets.put(tzid, dstOffset);
+                }
             }
             tzid = null;
             metazone = null;
+            dstOffset = null;
+            fallbackMetazone = null;
+            fallbackDstOffset = null;
+            fallbackTo = DATE_MIN;
             break;
         }
         currentContainer = currentContainer.getParent();

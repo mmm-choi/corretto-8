@@ -89,6 +89,11 @@ public class CLDRDisplayNamesTest {
         {ZonedDateTime.of(2026, 12, 5, 0, 0, 0, 0, ZoneId.of("America/Inuvik")), "Mountain Daylight Time"},
     };
 
+    static final String[][] METAZONE_FALLBACK_DATA = {
+        {"Europe/Kaliningrad", "Osteurop\u00e4ische Winterzeit"},
+        {"Europe/Minsk", "Osteurop\u00e4ische Winterzeit"},
+    };
+
     public static void main(String[] args) {
         TimeZone tz = TimeZone.getTimeZone("America/Los_Angeles");
         int errors = 0;
@@ -103,6 +108,16 @@ public class CLDRDisplayNamesTest {
                                       name, data[i], style, daylight, locale);
                     errors++;
                 }
+            }
+        }
+
+        for (String[] data : METAZONE_FALLBACK_DATA) {
+            String actual = TimeZone.getTimeZone(data[0])
+                    .getDisplayName(false, LONG, Locale.GERMAN);
+            if (!data[1].equals(actual)) {
+                System.err.printf("error: got '%s' expected '%s' (zone=%s)%n",
+                                  actual, data[1], data[0]);
+                errors++;
             }
         }
 
